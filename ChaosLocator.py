@@ -6,17 +6,31 @@ import time
 # ---- CONFIG ----
 CROP_X1, CROP_Y1, CROP_X2, CROP_Y2 = 100, 200, 1800, 900
 
-# Player colors (BGR)
-PLAYER_COLORS = [
-    np.array([20, 27, 27]),   # rgba(27,27,20,255)
-    np.array([30, 39, 38]),   # rgba(38,39,30,255)
-    np.array([56, 64, 92]),   # rgba(92,64,56,255)
+# Normal lighting colors (BGR)
+NORMAL_COLORS = [
+    np.array([237, 238, 231]),  # skin
+    np.array([134, 134, 129]),  # shaded skin
+    np.array([46, 56, 219]),    # hair
+    np.array([18, 199, 245]),   # gun
 ]
-PLAYER_TOL = 8
-PROX_RADIUS = 7
 
+# Shaded lighting colors (BGR)
+SHADED_COLORS = [
+    np.array([200, 203, 192]),  # skin
+    np.array([219, 57, 46]),    # hair
+    np.array([72, 79, 153]),    # dark hair/body
+    np.array([80, 167, 196]),   # gun
+]
+
+PLAYER_COLORS_BGR = NORMAL_COLORS + SHADED_COLORS
+PLAYER_TOL = 8
+PROX_RADIUS = 8
 SIDE_MARGIN = 0.05
 SMOOTH_ALPHA = 0.6
+
+# Size filtering for torso+hair
+MIN_WIDTH, MAX_WIDTH = 50, 250
+MIN_HEIGHT, MAX_HEIGHT = 100, 300
 
 # ---- HELPERS ----
 def make_mask(img, color, tol):
@@ -25,17 +39,15 @@ def make_mask(img, color, tol):
     return cv2.inRange(img, lower, upper)
 
 def find_player_blob(crop_bgr, last_cx=None, last_cy=None):
-    # build masks for each player color
-    masks = [make_mask(crop_bgr, c, PLAYER_TOL) for c in PLAYER_COLORS]
-
-    # combine masks using OR
+    # build masks
+    masks = [make_mask(crop_bgr, c, PLAYER_TOL) for c in PLAYER_COLORS_BGR]
     combined_mask = masks[0]
     for m in masks[1:]:
         combined_mask = cv2.bitwise_or(combined_mask, m)
 
-    # proximity between colors
+    # merge nearby blobs
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (PROX_RADIUS, PROX_RADIUS))
-    prox = combined_mask.copy()
+    prox = cv2.dilate(combined_mask, k, iterations=1)
     prox = cv2.morphologyEx(prox, cv2.MORPH_CLOSE, k)
     prox = cv2.morphologyEx(prox, cv2.MORPH_OPEN, k)
 
@@ -44,11 +56,18 @@ def find_player_blob(crop_bgr, last_cx=None, last_cy=None):
     if num <= 1:
         return None, None, prox, labels
 
-    # largest blob
-    idx = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
-    if stats[idx, cv2.CC_STAT_AREA] < 100:
+    # largest component within size limits
+    valid_idx = None
+    for i in range(1, num):
+        w, h = stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]
+        if MIN_WIDTH <= w <= MAX_WIDTH and MIN_HEIGHT <= h <= MAX_HEIGHT:
+            if valid_idx is None or stats[i, cv2.CC_STAT_AREA] > stats[valid_idx, cv2.CC_STAT_AREA]:
+                valid_idx = i
+
+    if valid_idx is None:
         return None, None, prox, labels
 
+    idx = valid_idx
     cx, cy = cents[idx]
     x, y, w, h = stats[idx, 0], stats[idx, 1], stats[idx, 2], stats[idx, 3]
 
@@ -66,13 +85,12 @@ if __name__ == "__main__":
     last_cx = last_cy = None
     last_side = None
 
-    print("Running… press 'q' in the window to quit.")
+    print("Running… press 'q' to quit.")
     while True:
         frame = cv2.cvtColor(np.array(pyautogui.screenshot()), cv2.COLOR_RGB2BGR)
         crop = frame[CROP_Y1:CROP_Y2, CROP_X1:CROP_X2]
 
-        result = find_player_blob(crop, last_cx, last_cy)
-        centroid, label_idx, prox_mask, labels = result
+        centroid, label_idx, prox_mask, labels = find_player_blob(crop, last_cx, last_cy)
 
         vis_crop = crop.copy()
         mask_vis = cv2.cvtColor(prox_mask, cv2.COLOR_GRAY2BGR)
@@ -82,6 +100,7 @@ if __name__ == "__main__":
             cx, cy, x, y, w, h = centroid
             last_cx, last_cy = cx, cy
 
+            # highlight blob
             mask_vis[labels == label_idx] = (0, 0, 255)
             cv2.rectangle(vis_crop, (x, y), (x + w, y + h), (0, 0, 255), 2)
             cv2.circle(vis_crop, (cx, cy), 6, (0, 255, 0), -1)
