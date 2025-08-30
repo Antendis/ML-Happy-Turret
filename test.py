@@ -12,26 +12,24 @@ def main():
     module = process.module_from_name(pm.process_handle, "GGST-Win64-Shipping.exe").lpBaseOfDll
 
     # Bullets addresses
-    p1_bullets_offset = 0x4A5EB04
-    p2_bullets_offset = 0x4A5ED5C
-    p1_bullets_addr = module + p1_bullets_offset
-    p2_bullets_addr = module + p2_bullets_offset
+    p1_bullets_addr = module + 0x4A5EB04
+    p2_bullets_addr = module + 0x4A5ED5C
 
-    # Player X positions
-    p1_x_offset = 0x4A5EEF4
-    p2_x_offset = 0x4A5EC9C
-    p1_x_addr = module + p1_x_offset
-    p2_x_addr = module + p2_x_offset
+    # Positions
+    p1_x_addr = module + 0x4A5EEF4
+    p2_x_addr = module + 0x4A5EC9C
 
-    print("Detecting which player is you...")
+    # Concentration bars
+    p1_conc_addr = module + 0x4A5EAFC
+    p2_conc_addr = module + 0x4A5ED54
+
+    print("Detecting which player is you (fire one bullet at start)...")
     your_player = None
     opponent = None
 
-    # Read initial bullets
+    # Initial bullets read
     p1_bullets = pm.read_int(p1_bullets_addr)
     p2_bullets = pm.read_int(p2_bullets_addr)
-
-    print("Start firing one bullet to detect your side...")
 
     while your_player is None:
         new_p1_bullets = pm.read_int(p1_bullets_addr)
@@ -43,30 +41,40 @@ def main():
         elif new_p2_bullets < p2_bullets:
             your_player = "P2"
             opponent = "P1"
-
         time.sleep(0.05)
 
     print(f"Your player: {your_player} | Opponent: {opponent}")
-    print("Monitoring bullets and positions... (Ctrl+C to stop)")
+    print("Monitoring bullets, positions, and concentration... (Ctrl+C to stop)")
 
     try:
         while True:
+            # Read bullets
             p1_bullets = pm.read_int(p1_bullets_addr)
             p2_bullets = pm.read_int(p2_bullets_addr)
+
+            # Read positions
             p1_x = read_float(pm, p1_x_addr)
             p2_x = read_float(pm, p2_x_addr)
+
+            # Read concentration
+            p1_conc = read_float(pm, p1_conc_addr)
+            p2_conc = read_float(pm, p2_conc_addr)
 
             # Map dynamically
             if your_player == "P1":
                 your_bullets = p1_bullets
                 your_x = p1_x
+                your_conc = p1_conc
                 opp_bullets = p2_bullets
                 opp_x = p2_x
+                opp_conc = p2_conc
             else:
                 your_bullets = p2_bullets
                 your_x = p2_x
+                your_conc = p2_conc
                 opp_bullets = p1_bullets
                 opp_x = p1_x
+                opp_conc = p1_conc
 
             # Determine left/right
             if your_x > opp_x:
@@ -76,8 +84,10 @@ def main():
                 your_side = "Left"
                 opp_side = "Right"
 
-            print(f"Bullets: {your_bullets} | You: {your_side} ({your_x:.2f}) | Opponent: {opp_side} ({opp_x:.2f})")
+            # Print single-line HUD
+            print(f"Bullets: {your_bullets} | Conc: {your_conc:.2f}| You: {your_side} ({your_x:.2f}) | Opponent: {opp_side} ({opp_x:.2f})")
             time.sleep(0.15)
+
     except KeyboardInterrupt:
         print("Stopped.")
 
