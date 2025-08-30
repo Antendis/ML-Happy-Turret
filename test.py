@@ -24,21 +24,21 @@ def main():
     max_health = 420  # In-game max health
     max_conc = 1.0    # Concentration normalized to 1.0
 
-    print("Detecting which player is you (fire one bullet at start)...")
+    print("Detecting which player is you (pull out gun immediately)...")
     your_player = None
     opponent = None
 
-    # Initial bullets
-    p1_bullets_val = pm.read_int(p1_bullets)
-    p2_bullets_val = pm.read_int(p2_bullets)
+    # Initial concentration
+    p1_conc_val = pm.read_int(p1_conc)
+    p2_conc_val = pm.read_int(p2_conc)
 
     while your_player is None:
-        new_p1_bullets = pm.read_int(p1_bullets)
-        new_p2_bullets = pm.read_int(p2_bullets)
-        if new_p1_bullets < p1_bullets_val:
+        new_p1_conc = pm.read_int(p1_conc)
+        new_p2_conc = pm.read_int(p2_conc)
+        if new_p1_conc < p1_conc_val:
             your_player = "P1"
             opponent = "P2"
-        elif new_p2_bullets < p2_bullets_val:
+        elif new_p2_conc < p2_conc_val:
             your_player = "P2"
             opponent = "P1"
         time.sleep(0.05)
@@ -88,7 +88,7 @@ def main():
                 your_side = "Left"
                 opp_side = "Right"
 
-            # Print HUD in requested order
+            # Print HUD
             print(f"Bullets: {your_bullets_val} | Conc: {your_conc_val:.1f}% | HP: {your_health_val:.1f} | Pos: {your_x_val:.2f} | "
                   f"Opponent HP: {opp_health_val:.1f} | Opponent Pos: {opp_x_val:.2f}")
 
